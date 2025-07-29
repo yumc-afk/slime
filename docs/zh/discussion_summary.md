@@ -42,5 +42,7 @@ PYTHONPATH=/root/Megatron-LM python tools/convert_hf_to_torch_dist.py \
     --save /root/GLM-Z1-9B-0414_torch_dist
 ```
 
+可以使用 [mbridge](https://github.com/ISEEKYAN/mbridge) 或 [Pai-Megatron-Patch](https://github.com/alibaba/Pai-Megatron-Patch) 等工具执行该转换。
+
 目前 slime 不支持直接通过 mbridge 加载 HF checkpoint，因此仍需先进行格式转换后再训练。文档中也提醒，使用 mbridge 转换得到的 `torch_dist` checkpoint 由于不保存 `args`，无法直接再转回 HF 格式。
 
