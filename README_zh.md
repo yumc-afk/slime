@@ -196,4 +196,5 @@ ray job submit --address="http://127.0.0.1:8265" \
 ## 常见 Q&A 与致谢
 
 - 常见问题请见 [Q&A](docs/zh/qa.md)
+- 235B 训练脚本与 ckpt 转换讨论请参见 [讨论汇总](docs/zh/discussion_summary.md)
 - 特别感谢以下项目 & 社区：SGLang、Megatron‑LM、mbridge、OpenRLHF、veRL 等。
