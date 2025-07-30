@@ -81,6 +81,17 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${SGLANG_ARGS[@]} \
    ${MISC_ARGS[@]}
 ```
+## 5. 使用 Hydra 生成 Shell 参数
+
+如果希望完全保持现有脚本不变，可以让 Hydra 仅负责生成诸如 `CKPT_ARGS` 的参数数组。示例配置见 `conf/run_qwen3_235B_A22B.yaml`，使用方式如下：
+
+```bash
+python3 tools/generate_args.py --config-name run_qwen3_235B_A22B > args.sh
+source args.sh
+```
+
+该脚本会输出诸如 `CKPT_ARGS=( ... )` 的变量，source 后即可正常执行原来的启动脚本。
+
 
 脚本首先从 `scripts/models/deepseek-v3.sh` 读取模型配置，再按类别组装参数数组，最终通过 Ray 启动 `train.py`。`train.py` 解析这些参数后，将普通参数传给 Megatron 训练逻辑，将带有 `--sglang-` 的参数用于构建推理引擎。由此实现单脚本同时启动训练与推理。
 

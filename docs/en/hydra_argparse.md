@@ -81,6 +81,17 @@ ray job submit --address="http://127.0.0.1:8265" \
 ```
 
 The script sources `scripts/models/deepseek-v3.sh` to load model settings, assembles argument arrays, and finally invokes `train.py` via a Ray job. `train.py` parses all options, forwarding generic ones to Megatron and the `--sglang-*` subset to the inference engine. This allows training and inference to launch together from one script.
+## 5. Driving bash scripts with Hydra
+
+Sometimes we prefer not to change the existing shell framework at all. You can keep `scripts/run-qwen3-235B-A22B.sh` untouched and use Hydra only to build the argument arrays it expects. A sample config lives in `conf/run_qwen3_235B_A22B.yaml`. Generate the arrays with:
+
+```bash
+python3 tools/generate_args.py --config-name run_qwen3_235B_A22B > args.sh
+source args.sh
+```
+
+The helper prints variables like `CKPT_ARGS=( ... )`. Once sourced, the original script can be executed normally and receives the same arguments as before.
+
 
 ---
 

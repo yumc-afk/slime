@@ -1,5 +1,6 @@
 accelerate
 httpx[http2]
+hydra-core
 mcp[cli]
 pylatexenc
 ray[default]
