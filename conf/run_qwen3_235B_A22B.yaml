@@ -1,0 +1,144 @@
+base_folder: ${oc.env:BASE_FOLDER}
+
+model_args:
+  - --disable-bias-linear
+  - --qk-layernorm
+  - --group-query-attention
+  - --num-attention-heads 64
+  - --num-query-groups 4
+  - --kv-channels 128
+  - --num-layers 94
+  - --hidden-size 4096
+  - --ffn-hidden-size 12288
+  - --normalization RMSNorm
+  - --position-embedding-type rope
+  - --norm-epsilon 1e-6
+  - --rotary-percent 1.0
+  - --swiglu
+  - --untie-embeddings-and-output-weights
+  - --vocab-size 151936
+  - --rotary-base 1000000
+  - --moe-ffn-hidden-size 1536
+  - --moe-router-score-function softmax
+  - --moe-token-dispatcher-type alltoall
+  - --moe-router-topk 8
+  - --moe-layer-freq "'([1]*94)'"
+  - --num-experts 128
+  - --moe-grouped-gemm
+  - --moe-token-drop-policy probs
+  - --moe-router-dtype fp32
+  - --moe-permute-fusion
+  - --moe-aux-loss-coeff 0
+
+ckpt_args:
+  - --hf-checkpoint ${base_folder}/Qwen3-235B-A22B
+  - --ref-load ${base_folder}/Qwen3-235B-A22B_torch_dist
+  - --load ${base_folder}/Qwen3-235B-A22B_slime/
+  - --save ${base_folder}/Qwen3-235B-A22B_slime/
+  - --save-interval 20
+
+rollout_args:
+  - --prompt-data ${base_folder}/dapo-math-17k/dapo-math-17k.jsonl
+  - --input-key prompt
+  - --label-key label
+  - --apply-chat-template
+  - --rollout-shuffle
+  - --rm-type deepscaler
+  - --num-rollout 3000
+  - --rollout-batch-size 8
+  - --n-samples-per-prompt 8
+  - --rollout-max-response-len 8192
+  - --rollout-temperature 0.8
+  - --global-batch-size 64
+  - --balance-data
+
+eval_args:
+  - --eval-prompt-data aime ${base_folder}/aime-2024/aime-2024.jsonl
+  - --n-samples-per-eval-prompt 16
+  - --eval-max-response-len 16384
+  - --eval-top-p 0.7
+
+perf_args:
+  - --tensor-model-parallel-size 4
+  - --sequence-parallel
+  - --pipeline-model-parallel-size 4
+  - --context-parallel-size 2
+  - --expert-model-parallel-size 8
+  - --expert-tensor-parallel-size 1
+  - --decoder-last-pipeline-num-layers 22
+  - --recompute-granularity full
+  - --recompute-method uniform
+  - --recompute-num-layers 1
+  - --use-dynamic-batch-size
+  - --max-tokens-per-gpu 4096
+
+grpo_args:
+  - --advantage-estimator grpo
+  - --kl-loss-coef 0.00
+  - --kl-loss-type low_var_kl
+  - --entropy-coef 0.00
+  - --eps-clip 0.2
+  - --eps-clip-high 0.28
+
+optimizer_args:
+  - --optimizer adam
+  - --lr 1e-6
+  - --lr-decay-style constant
+  - --weight-decay 0.1
+  - --adam-beta1 0.9
+  - --adam-beta2 0.98
+  - --optimizer-cpu-offload
+  - --overlap-cpu-optimizer-d2h-h2d
+  - --use-precision-aware-optimizer
+
+wandb_args: []
+
+sglang_args:
+  - --rollout-num-gpus-per-engine 32
+  - --sglang-mem-fraction-static 0.5
+  - --sglang-enable-ep-moe
+  - --sglang-enable-dp-attention
+  - --sglang-dp-size 4
+  - --sglang-cuda-graph-bs
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 24
+  - 32
+  - 40
+  - 48
+  - 56
+  - 64
+  - 72
+  - 80
+  - 88
+  - 96
+  - 104
+  - 112
+  - 120
+  - 128
+  - 136
+  - 144
+  - 152
+  - 160
+  - 168
+  - 176
+  - 184
+  - 192
+  - 200
+  - 208
+  - 216
+  - 224
+  - 232
+  - 240
+  - 248
+  - 256
+
+misc_args:
+  - --attention-dropout 0.0
+  - --hidden-dropout 0.0
+  - --accumulate-allreduce-grads-in-fp32
+  - --attention-softmax-in-fp32
+  - --attention-backend flash
