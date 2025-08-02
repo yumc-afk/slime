@@ -168,6 +168,18 @@ class HttpServerEngineAdapter:
             },
         )
 
+    def update_weights_from_distributed_rank2rank(self, names, dtypes, shapes, group_name, flush_cache=False):
+        return self._make_request(
+            "update_weights_from_distributed_rank2rank",
+            {
+                "names": names,
+                "dtypes": [str(dtype).replace("torch.", "") for dtype in dtypes],
+                "shapes": shapes,
+                "group_name": group_name,
+                "flush_cache": flush_cache,
+            },
+        )
+
     def pause_generation(self):
         return requests.post(f"http://{self.server_args.host}:{self.server_args.port}/pause_generation", json={})
 
