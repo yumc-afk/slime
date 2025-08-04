@@ -1,11 +1,64 @@
 import ray
+import os
 
 from slime.ray.placement_group import create_actor_group, create_placement_groups, create_rollout_manager
 from slime.utils.arguments import parse_args
 from slime.utils.wandb_utils import init_wandb_primary
 
 
+def _setup_plan_act_orchestrator(args):
+    """
+    Setup Plan/Act orchestrator if this is the planner role.
+    Uses detached Ray actor to survive job restarts.
+    """
+    try:
+        from examples.plan_act.plan_act_orchestrator import PlanActOrchestrator
+        
+        # Create orchestrator config
+        orchestrator_config = {
+            "max_turns": 5,
+            "max_concurrent_acts": 8,
+            "session_timeout": args.plan_act_timeout,
+            "rollout_batch_size": args.rollout_batch_size,
+        }
+        
+        # Create detached orchestrator actor in specified namespace
+        orchestrator = PlanActOrchestrator.options(
+            name=f"{args.orchestrator_namespace}_orchestrator",
+            namespace=args.orchestrator_namespace,
+            lifetime="detached"
+        ).remote(config=orchestrator_config)
+        
+        print(f"Plan/Act orchestrator created in namespace: {args.orchestrator_namespace}")
+        
+        # Store reference for later use (optional)
+        args._orchestrator_ref = orchestrator
+        
+    except ImportError as e:
+        print(f"Warning: Could not import PlanActOrchestrator: {e}")
+        if not args.fallback_on_timeout:
+            raise RuntimeError("Plan/Act orchestrator required but not available")
+        print("Continuing without orchestrator (fallback mode)")
+    except Exception as e:
+        print(f"Warning: Failed to setup Plan/Act orchestrator: {e}")
+        if not args.fallback_on_timeout:
+            raise
+        print("Continuing without orchestrator (fallback mode)")
+
+
 def train(args):
+    # Handle Plan/Act architecture orchestrator startup
+    if args.enable_plan_act and args.agent_role == "planner":
+        _setup_plan_act_orchestrator(args)
+    
+    # Handle port offset for Plan/Act mode to avoid conflicts
+    if args.enable_plan_act and args.master_port_offset > 0:
+        if 'MASTER_PORT' in os.environ:
+            current_port = int(os.environ['MASTER_PORT'])
+            new_port = current_port + args.master_port_offset
+            os.environ['MASTER_PORT'] = str(new_port)
+            print(f"Adjusted MASTER_PORT from {current_port} to {new_port} for agent role: {args.agent_role}")
+    
     # allocate the GPUs
     pgs = create_placement_groups(args)
     wandb_run_id = init_wandb_primary(args)
