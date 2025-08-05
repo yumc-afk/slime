@@ -84,4 +84,6 @@ You can compare [run-qwen3-4B-base-sft.sh](../../scripts/run-qwen3-4B.sh) with [
 
     Finally, `--disable-compute-advantages-and-returns` indicates that there is no need to pre-calculate log probabilities during the SFT process, and `--debug-train-only` means that `sglang` does not need to be initialized.
 
+    When `--use-dynamic-batch-size` is enabled, the default behaviour keeps the number of samples fixed and produces packed sequences with variable lengths. If you prefer to keep the packed sequence length fixed and let the number of samples adjust automatically, add the flag `--fixed-packed-seq`.
+
 3.  Used `train_async.py` instead of `train.py`. This is to leverage the asynchronous training process to implement data prefetching.

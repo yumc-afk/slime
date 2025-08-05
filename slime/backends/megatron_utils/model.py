@@ -423,7 +423,7 @@ def train(rollout_id, model, optimizer, opt_param_scheduler, data_iterator, num_
         config.param_sync_func = None
         pre_hook_enabled = False
 
-    num_steps_per_rollout = args.rollout_batch_size * args.n_samples_per_prompt // args.global_batch_size
+    num_steps_per_rollout = len(num_microbatches)
 
     # Run training iterations till done.
     for step_id in range(num_steps_per_rollout):

@@ -30,18 +30,38 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
 
     if MASK_GENERATOR is None:
         MASK_GENERATOR = MultiTurnLossMaskGenerator(TOKENIZER, tokenizer_type=args.loss_mask_type)
+    if args.use_dynamic_batch_size and args.fixed_packed_seq:
+        target_tokens = args.max_tokens_per_gpu * (args.num_steps_per_rollout or 1)
+        collected_tokens = 0
+        samples = []
+        while collected_tokens < target_tokens:
+            group = data_buffer.get_samples(1)[0]
+            group_token_len = 0
+            for sample in group:
+                messages = sample.prompt
+                token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
+                response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
 
-    samples = data_buffer.get_samples(args.rollout_batch_size)
+                sample.tokens = token_ids
+                sample.response_length = response_length
+                sample.reward = 0
+                sample.loss_mask = loss_mask[-response_length:]
+                group_token_len += len(token_ids)
+            collected_tokens += group_token_len
+            samples.append(group)
+        return samples
+    else:
+        samples = data_buffer.get_samples(args.rollout_batch_size)
 
-    for sample in samples:
-        (sample,) = sample
-        messages = sample.prompt
-        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
-        response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
+        for sample in samples:
+            (sample,) = sample
+            messages = sample.prompt
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
+            response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
 
-        sample.tokens = token_ids
-        sample.response_length = response_length
-        sample.reward = 0
-        sample.loss_mask = loss_mask[-response_length:]
+            sample.tokens = token_ids
+            sample.response_length = response_length
+            sample.reward = 0
+            sample.loss_mask = loss_mask[-response_length:]
 
-    return samples
+        return samples

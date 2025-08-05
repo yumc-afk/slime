@@ -84,4 +84,6 @@ bash script/run-qwen3-4B-base-sft.sh
 
    最后 `--disable-compute-advantages-and-returns` 表示 sft 的过程中不需要预先计算 log prob，`--debug-train-only` 表示不需要初始化 sglang。
 
+   当开启 `--use-dynamic-batch-size` 时，默认情况下样本数量固定而打包后的序列长度会变化。如果希望固定打包后的序列长度，让样本数量动态变化，可以额外添加 `--fixed-packed-seq` 选项。
+
 3. 使用了 `train_async.py` 而不是 `train.py`。这是为了利用异步训练的流程，来实现数据 prefetch。

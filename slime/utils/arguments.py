@@ -442,6 +442,15 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                     "and should be set to a larger value than `max_tokens_per_gpu` if you want better performance. "
                 ),
             )
+            parser.add_argument(
+                "--fixed-packed-seq",
+                action="store_true",
+                default=False,
+                help=(
+                    "When using dynamic batch size for SFT, fix the packed sequence length "
+                    "and allow the number of samples to vary."
+                ),
+            )
             return parser
 
         def add_eval_arguments(parser):

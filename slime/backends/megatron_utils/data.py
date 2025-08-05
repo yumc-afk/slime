@@ -79,21 +79,45 @@ def get_batch(data_iterator, keys):
 
 
 def get_data_iterator(args, model, rollout_data):
-    num_local_samples = (
-        args.rollout_batch_size
-        * args.n_samples_per_prompt
-        // mpu.get_data_parallel_world_size(with_context_parallel=False)
-    )
-    num_local_gbs = args.global_batch_size // mpu.get_data_parallel_world_size(with_context_parallel=False)
-    num_steps_per_rollout = num_local_samples // num_local_gbs
-
     vpp_size = mpu.get_virtual_pipeline_model_parallel_world_size()
     config = get_model_config(model[0])
 
     if vpp_size is None:
         vpp_size = 1
 
-    if not args.use_dynamic_batch_size:
+    if args.use_dynamic_batch_size and args.fixed_packed_seq:
+        cp_size = mpu.get_context_parallel_world_size()
+        samples = rollout_data["total_lengths"]
+        token_budget = args.max_tokens_per_gpu * cp_size
+        micro_batch_indices = []
+        cur_batch = []
+        cur_tokens = 0
+        for idx, l in enumerate(samples):
+            if cur_tokens + l > token_budget and cur_batch:
+                micro_batch_indices.append(cur_batch)
+                cur_batch = []
+                cur_tokens = 0
+            cur_batch.append(idx)
+            cur_tokens += l
+        if cur_batch:
+            micro_batch_indices.append(cur_batch)
+
+        log_probs_num_microbatches = len(micro_batch_indices)
+        train_num_microbatches = [len(micro_batch_indices)]
+        log_probs_data_iterator = []
+        train_data_iterator = []
+        for i in range(vpp_size):
+            log_probs_data_iterator.append(DataIterator(rollout_data, None, micro_batch_indices=micro_batch_indices))
+            train_data_iterator.append(DataIterator(rollout_data, None, micro_batch_indices=micro_batch_indices))
+    elif not args.use_dynamic_batch_size:
+        num_local_samples = (
+            args.rollout_batch_size
+            * args.n_samples_per_prompt
+            // mpu.get_data_parallel_world_size(with_context_parallel=False)
+        )
+        num_local_gbs = args.global_batch_size // mpu.get_data_parallel_world_size(with_context_parallel=False)
+        num_steps_per_rollout = num_local_samples // num_local_gbs
+
         log_probs_num_microbatches = num_local_samples // args.ref_micro_batch_size
         train_num_microbatches = [num_local_gbs // args.micro_batch_size for _ in range(num_steps_per_rollout)]
 
@@ -103,6 +127,13 @@ def get_data_iterator(args, model, rollout_data):
             log_probs_data_iterator.append(DataIterator(rollout_data, args.ref_micro_batch_size))
             train_data_iterator.append(DataIterator(rollout_data, args.micro_batch_size))
     else:
+        num_local_samples = (
+            args.rollout_batch_size
+            * args.n_samples_per_prompt
+            // mpu.get_data_parallel_world_size(with_context_parallel=False)
+        )
+        num_local_gbs = args.global_batch_size // mpu.get_data_parallel_world_size(with_context_parallel=False)
+        num_steps_per_rollout = num_local_samples // num_local_gbs
         assert args.max_tokens_per_gpu is not None
         # calculate the number of mirobatches for each step
         cp_size = mpu.get_context_parallel_world_size()
