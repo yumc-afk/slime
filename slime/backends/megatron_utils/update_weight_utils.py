@@ -413,6 +413,9 @@ class UpdateWeightFromDistributed:
         pp_rank = mpu.get_pipeline_model_parallel_rank()
         if self._is_pp_src_rank:
             self._group_name = f"slime-pp_{pp_rank}"
+        self._rank2rank_enabled = getattr(self.args, "enable_moe_rank2rank_sync", False)
+        self._ep_rank = mpu.get_expert_model_parallel_rank()
+        self._ep_size = mpu.get_expert_model_parallel_world_size()
 
         if self._is_pp_src_rank:
             master_address = ray._private.services.get_node_ip_address()
@@ -440,6 +443,29 @@ class UpdateWeightFromDistributed:
                 group_name=self._group_name,
             )
             ray.get(refs)
+
+            if self._rank2rank_enabled:
+                r2r_world = self.args.rollout_num_gpus + 1
+                r2r_group_name = f"{self._group_name}-r2r_{self._ep_rank}"
+                r2r_refs = [
+                    engine.init_process_group.remote(
+                        master_address,
+                        master_port,
+                        1 + i * self.args.rollout_num_gpus_per_engine,
+                        r2r_world,
+                        r2r_group_name,
+                        backend="nccl",
+                    )
+                    for i, engine in enumerate(self.rollout_engines)
+                ]
+                self._r2r_group = init_process_group(
+                    backend="nccl",
+                    init_method=f"tcp://{master_address}:{master_port}",
+                    world_size=r2r_world,
+                    rank=0,
+                    group_name=r2r_group_name,
+                )
+                ray.get(r2r_refs)
 
     def update_weights(self):
         if dist.get_rank() == 0:
@@ -511,6 +537,12 @@ class UpdateWeightFromDistributed:
         return buffer_size
 
     def _update_expert_bucket_weights_from_distributed(self, named_tensors, pbar=None):
+        if self._rank2rank_enabled:
+            if not self._is_pp_src_rank:
+                named_tensors.clear()
+                return
+            return self._update_expert_bucket_weights_rank2rank(named_tensors, pbar=pbar)
+
         names = [name for name, _ in named_tensors]
         all_names = [None] * mpu.get_expert_model_parallel_world_size()
         dist.all_gather_object(all_names, names, group=mpu.get_expert_model_parallel_group())
@@ -541,6 +573,36 @@ class UpdateWeightFromDistributed:
         for name, param in all_gathered_params:
             converted_hf_tensors += convert_to_hf(self.args, self.model_name, name, param, self.quantization_config)
         self._update_bucket_weights_from_distributed(converted_hf_tensors, pbar=pbar)
+
+    def _update_expert_bucket_weights_rank2rank(self, named_tensors, pbar=None):
+        names = [name for name, _ in named_tensors]
+        refs = [
+            engine.update_weights_from_distributed_rank2rank.remote(
+                names=names,
+                dtypes=[param.dtype for _, param in named_tensors],
+                shapes=[param.shape for _, param in named_tensors],
+                group_name=f"{self._group_name}-r2r_{self._ep_rank}",
+            )
+            for engine in self.rollout_engines
+        ]
+
+        handles = []
+        for _, param in named_tensors:
+            handles.append(
+                dist.broadcast(
+                    param.data,
+                    0,
+                    group=self._r2r_group,
+                    async_op=True,
+                )
+            )
+        for handle in handles:
+            handle.wait()
+
+        ray.get(refs)
+        named_tensors.clear()
+        if pbar is not None:
+            pbar.update(1)
 
     def _update_bucket_weights_from_distributed(self, converted_named_tensors, pbar=None):
         # lock the rollout engines to prevent dead lock on broadcast.

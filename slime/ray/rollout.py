@@ -40,6 +40,9 @@ class RolloutRayActor(RayActor):
     def update_weights_from_distributed(self, names, dtypes, shapes, group_name):
         return self.infer_engine.update_weights_from_distributed(names, dtypes, shapes, group_name)
 
+    def update_weights_from_distributed_rank2rank(self, names, dtypes, shapes, group_name):
+        return self.infer_engine.update_weights_from_distributed_rank2rank(names, dtypes, shapes, group_name)
+
     def update_weights_from_tensor(self, ipc_handles):
         return self.infer_engine.update_weights_from_tensor(ipc_handles)
 

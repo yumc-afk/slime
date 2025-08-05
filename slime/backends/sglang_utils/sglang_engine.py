@@ -80,6 +80,10 @@ class SglangEngine:
         self.llm.update_weights_from_distributed(names, dtypes, shapes, group_name)
         return
 
+    def update_weights_from_distributed_rank2rank(self, names, dtypes, shapes, group_name):
+        self.llm.update_weights_from_distributed_rank2rank(names, dtypes, shapes, group_name)
+        return
+
     def update_weights_from_tensor(self, ipc_handles):
         self.llm.update_weights_from_tensor(ipc_handles)
         return
