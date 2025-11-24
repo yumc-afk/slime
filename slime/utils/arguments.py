@@ -781,6 +781,49 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
             )
             return parser
 
+        def add_plan_act_arguments(parser):
+            """
+            Add Plan/Act architecture arguments for multi-agent coordination.
+            """
+            parser.add_argument(
+                "--agent-role",
+                type=str,
+                choices=["planner", "actor"],
+                default=None,
+                help="Role of this agent in Plan/Act architecture (planner or actor)."
+            )
+            parser.add_argument(
+                "--enable-plan-act",
+                action="store_true",
+                default=False,
+                help="Enable Plan/Act mode with orchestrator coordination."
+            )
+            parser.add_argument(
+                "--plan-act-timeout",
+                type=int,
+                default=300,
+                help="Timeout in seconds for Plan/Act coordination."
+            )
+            parser.add_argument(
+                "--fallback-on-timeout",
+                action="store_true",
+                default=False,
+                help="Fall back to independent execution if orchestrator times out."
+            )
+            parser.add_argument(
+                "--orchestrator-namespace",
+                type=str,
+                default="plan_act_orchestrator",
+                help="Ray namespace for the shared orchestrator."
+            )
+            parser.add_argument(
+                "--master-port-offset",
+                type=int,
+                default=0,
+                help="Port offset to avoid conflicts between planner and actor processes."
+            )
+            return parser
+
         def add_custom_megatron_plugins_arguments(parser):
             """
             Add custom Megatron plugins arguments.
@@ -819,6 +862,7 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
         parser = add_network_arguments(parser)
         parser = add_reward_model_arguments(parser)
         parser = add_rollout_buffer_arguments(parser)
+        parser = add_plan_act_arguments(parser)
         parser = add_custom_megatron_plugins_arguments(parser)
         # For megatron
         parser.add_argument("--padded-vocab-size", type=int, default=None)
@@ -983,6 +1027,24 @@ def parse_args(add_custom_arguments=None):
         args.moe_token_dispatcher_type = "alltoall"
 
     sglang_validate_args(args)
+
+    # Validate Plan/Act arguments
+    if args.enable_plan_act:
+        assert args.agent_role is not None, (
+            "agent_role must be specified when enable_plan_act is True. "
+            "Please set --agent-role to either 'planner' or 'actor'."
+        )
+        
+        if args.agent_role == "planner":
+            print(f"Plan/Act mode enabled: This process will act as PLANNER")
+        elif args.agent_role == "actor":  
+            print(f"Plan/Act mode enabled: This process will act as ACTOR")
+        
+        print(f"Orchestrator namespace: {args.orchestrator_namespace}")
+        print(f"Plan/Act timeout: {args.plan_act_timeout}s")
+        
+        if args.fallback_on_timeout:
+            print("Fallback mode enabled: Will continue independently if orchestrator fails")
 
     return args
 
